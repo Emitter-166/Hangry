@@ -22,6 +22,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.example.database.connection;
 
@@ -274,18 +275,20 @@ public class Hangry extends ListenerAdapter {
         };
     }
 
-    static void send(String killed, boolean isSingle) throws IOException, SQLException {
+    static void send(String killed, boolean isSingle) throws IOException, SQLException, InterruptedException {
         String killMessage;
         String killer;
+        String path;
         if (!isSingle) {
             do {
                 Random random = new Random();
                 killer = (String) tracker.keySet().toArray()[random.nextInt(tracker.size())];
             } while (killer.equalsIgnoreCase(killed));
-            String path = dualImage(killer, killed);
+             path = dualImage(killer, killed);
             String killed_name =  Main.jda.getGuildById(serverId).retrieveMemberById(killed).complete().getEffectiveName() ;
             String killer_name =  Main.jda.getGuildById(serverId).retrieveMemberById(killer).complete().getEffectiveName();
-
+            int kills = tracker.get(killer);
+            tracker.put(killer, kills + 1);
             killMessage = "**" + connection.createStatement().executeQuery("SELECT * FROM kill_messages ORDER BY RANDOM() LIMIT 1")
                     .getString("message").replace("x ", killer_name + " ").replace(" x ", " " + killer_name + " ")
                     .replace(" y ", " " + killed_name + " ") + "**";
@@ -293,40 +296,25 @@ public class Hangry extends ListenerAdapter {
             Main.jda.getTextChannelById(channelId).sendMessageEmbeds(new EmbedBuilder()
                             .setDescription(killMessage)
                             .build())
-                    .addFile(file).queue(message ->{
-                        try {
-                            TimeUnit.SECONDS.sleep(5);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
+                    .addFile(file).queue((message ->{
                         file.delete();
-                            });
-
-            tracker.put(killer, tracker.get(killer) + 1);
+                    }));
         } else {
-            String path = oneImage(killed, false);
+            path = oneImage(killed, false);
             String name = "||" + Main.jda.getGuildById(serverId).retrieveMemberById(killed).complete().getEffectiveName() + "||";
             killMessage = "**" + connection.createStatement().executeQuery("SELECT * FROM death_messages ORDER BY RANDOM() LIMIT 1")
                     .getString("message").replace("x ", name + " ").replace(" x ", " " + name + " ") + "**";
-
             File file = new File(path);
             Main.jda.getTextChannelById(channelId).sendMessageEmbeds(new EmbedBuilder()
                             .setDescription(killMessage)
                             .build())
                     .addFile(file, AttachmentOption.SPOILER).queue((message ->{
-                        try {
-                            TimeUnit.SECONDS.sleep(5);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
                         file.delete();
                     }));
-
         }
     }
     static void start() throws SQLException, InterruptedException, IOException {
         TextChannel channel = Main.jda.getTextChannelById(channelId);
-        channel.sendTyping().queue();
         started = System.currentTimeMillis();
         Random random = new Random();
         random.nextInt();
@@ -339,7 +327,7 @@ public class Hangry extends ListenerAdapter {
         int realSize = tracker.size();
         while (tracker.size() != 1) {
             channel.sendTyping().queue();
-            TimeUnit.SECONDS.sleep(9);
+            TimeUnit.SECONDS.sleep(11);
             if (tracker.size() % 10 == 0 || tracker.size() == 4 || tracker.size() % Math.round(realSize / 2F) == 0) {
                 if(!(realSize == tracker.size())){
                     sendRemaining();
